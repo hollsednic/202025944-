@@ -1,4 +1,4 @@
-#loading our median age data in; skip first three lines for 2021 bounds data
+####loading our median age data in; skip first three lines for 2021 bounds data ####
 #as it includes the headers#
 library(tidyverse)
 library(readr)
@@ -27,8 +27,8 @@ ages_2020 <- read_csv("2020 ages man woman 2021.csv", skip = 3)
 ages_2021 <- read_csv("2021 ages man woman 2021.csv", skip = 3)
 ages_2022 <- read_csv("2022 ages man woman 2021.csv", skip = 3)
 ages_2023 <- read_csv("2023 ages man woman 2021.csv", skip = 3)
-
-## making the median age function ##
+ 
+### median age function before applying to each ages item ####
 
 calc_median_age <- function(counts) {
   
@@ -61,7 +61,7 @@ process_old_file <- function(df, year) {
 }
 
 ### Running on data 2011 to 2023 ### 
-process_new_file <- function(df, year) {
+process_new_file <- function(df, year) {  # making a function to 
   
   age_counts <- sapply(
     0:90,
@@ -103,17 +103,17 @@ median_age_all_raw <- bind_rows(
   
 )
 
-## checking if it worked ##
+## checking if it worked ## 
 nrow(median_age_all_raw)
 median_age_all_raw %>% distinct(year) %>% arrange(year)
 
 
 ### converting 2004 to 2010 lsoas which are in 2011 bounds to 2021 boundaries ###
-## 94 percent of lsoas can be moved over; those which cant are dropped ##
+## 94 percent of lsoas can be moved over; those which are cant are dropped ##
 lsoa_lookup_2011_2021 <- read_csv("lsoa11 to lsoa21.csv") %>%
   select(LSOA11CD, LSOA21CD, CHGIND)
 
-lookup_unchanged <- lsoa_lookup_2011_2021 %>%
+lookup_unchanged <- lsoa_lookup_2011_2021 %>% ## filter to just unchanged lsoas before moving on ##
   filter(CHGIND == "U") %>%
   select(LSOA11CD, LSOA21CD)
 
@@ -128,11 +128,11 @@ new_part <- median_age_all_raw %>%
 
 median_age_all <- bind_rows(old_part, new_part)
 
-nrow(median_age_all)
+nrow(median_age_all) ## this should be around 699,200 shows number of lsoa-year rows
 
-## confirm no dupes ##
+## confirm no dupes ## dealing with dupes has been a feature of this data wrangling work ##
 median_age_all %>% count(lsoa_id, year) %>% filter(n > 1) %>% nrow() == 0
-# How many pre-2011 rows were dropped due to split/merged/complex LSOAs?
+# Check how many pre-2011 rows were dropped due to split/merged/complex LSOAs
 rows_before <- median_age_all_raw %>% filter(year <= 2010) %>% nrow()
 rows_after  <- old_part %>% nrow()
 
@@ -144,7 +144,7 @@ cat("Rows dropped:", rows_before - rows_after, "\n")
 median_age_all_raw %>% filter(year <= 2010) %>% distinct(lsoa_id) %>% nrow()
 old_part %>% distinct(lsoa_id) %>% nrow()
 
-### joining to main panel ###
+### joining to main panel ### make sure main ptf panel is loaded in before 
 
 ptf_cleaned_2307 <- ptf_cleaned_2307 %>%
   select(-any_of("median_age")) %>%
@@ -153,7 +153,7 @@ ptf_cleaned_2307 <- ptf_cleaned_2307 %>%
 ## confirm no dupes ##
 ptf_cleaned_2307 %>%
   count(lsoa_id, year, day_type, time_of_day, is_peak) %>%
-  filter(n > 1) %>%
+  filter(n > 1) %>% 
   nrow()   # expect 0
 
 sum(is.na(ptf_cleaned_2307$median_age))
@@ -169,29 +169,18 @@ ptf_cleaned_2307 %>%
   count(year) %>%
   arrange(year)
 
-official_median_age_2022 <- read_csv("median_age_england_and_wales.csv")
+####Validating the median age we have just calculated####
+
+official_median_age_2022 <- read_csv("median_age_england_and_wales.csv") ## load a modern ONS median age data table ##
 
 validation <- median_age_all %>%
   filter(year == 2022) %>%
-  left_join(official_median_age_2022, by = c("lsoa_id" = "LSOA21CD"))
+  left_join(official_median_age_2022, by = c("lsoa_id" = "LSOA21CD")) ## joining the calculated median ages to the 2022 table
 
-cor(validation$median_age, validation$`median aged 2022`, use = "complete.obs")
+cor(validation$median_age, validation$`median aged 2022`, use = "complete.obs") # calculate correlation between the two#
 
-mean(abs(validation$median_age - validation$`median aged 2022`), na.rm = TRUE)
+mean(abs(validation$median_age - validation$`median aged 2022`), na.rm = TRUE) # check the average difference, should have R of 0.99 #
 
-## sanity check on the distribution ##
+## sanity check on the distribution in ptf ## 
 summary(ptf_cleaned_2307$median_age)
 
-# Are these the same 1,106 LSOAs plus a similar number from a different cause,
-# or is the true median-age exclusion actually closer to 2,022?
-missing_median_age_lsoas <- ptf_cleaned_2307 %>%
-  filter(is.na(median_age)) %>%
-  distinct(lsoa_id) %>%
-  pull(lsoa_id)
-
-length(missing_median_age_lsoas)   # should match 2,022
-
-# Direct check against median_age_all itself (not the joined panel) —
-# this isolates the pure conversion-step exclusion, matching your earlier check
-median_age_all_raw %>% distinct(lsoa_id) %>% nrow()
-median_age_all %>% distinct(lsoa_id) %>% nrow()
