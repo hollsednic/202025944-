@@ -8,7 +8,11 @@ library(fixest)
 
 #### load data in and clean ####
 load("ptf_cleaned_2307_FINAL_FINAL.RData")
+# Force it back to a plain tibble/data.frame, removing data.table behaviour## has been accidentally changed before
 
+ptf_cleaned_2307 <- as.data.frame(ptf_cleaned_2307)
+
+class(ptf_cleaned_2307) # should not say data table
 
 ### zero out frequencies which are negative ###
 ptf_cleaned_2307 <- ptf_cleaned_2307 %>%
@@ -234,7 +238,7 @@ summary(check_conv_feols(fourth_quartile))
 etable(first_quartile, second_quartile, third_quartile, fourth_quartile,
        headers = c("Q1 (lowest)", "Q2", "Q3", "Q4 (highest)"))
 
-
+## Extracting coefficients from each quartile ##
 quartile_coefs <- bind_rows(
   tibble(quartile = 1, estimate = summary(first_quartile)$coeftable["overall_tph", "Estimate"],
          se = summary(first_quartile)$coeftable["overall_tph", "Std. Error"]),
@@ -305,11 +309,11 @@ rail_peak <- feols(
 )
 
 
-### making comparison tables ###
+### making comparison tables for each time period ##
 etable(baseline_overall, baseline_weekend, baseline_peak,
        headers = c("Weekday average", "Weekend average", "Weekday peak"))
 
-## estimating coefficients for each time period studied ##
+## estimating coefficients for each time period studied ## 
 robustness_summary <- tibble(
   time_period = rep(c("Weekday (primary)", "Weekend", "Weekday peak"), 3),
   frequency_type = rep(c("Overall", "Bus", "Rail"), each = 3),
