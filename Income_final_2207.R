@@ -2,7 +2,7 @@ library(tidyverse)
 library(dplyr)
 
 ptf_cleaned_2207 <- ptf_cleaned_2207 %>%
-  select(-matches("^income"))
+  select(-matches("^income"))  ## previously got income wrong, remove if in the dataset ##
 
 names(ptf_cleaned_2207)   # confirm income is gone before rebuilding it
 
@@ -202,7 +202,7 @@ for (yr in 2012:2005) {
       by = "lad_id"
     ) %>%
     mutate(
-      income = income / (1 + growth / 100),
+      income = income / (1 + growth / 100), ## reverse the growth rate to estimate the prior year's income from this year's value ##
       year   = yr - 1
     ) %>%
     select(msoa_id, msoa_name, lad_id, lad_name, income, year)
@@ -222,10 +222,10 @@ income_backcast %>%
 ## remove 2012 from backcast data and combine with recent data ##
 income_0421 <- bind_rows(
   income_backcast %>% filter(year < 2012),   # 2004-2011 only, 2012 excluded here
-  income_msoa_complete,                       # includes the genuine 2012 row
+  income_msoa_complete,                       # includes the 2012 row
   income_2021
 )
-income_0421 %>% count(msoa_id, year) %>% filter(n > 1) %>% nrow() # check if any duplication has occurred; should be zero #
+income_0421 %>% count(msoa_id, year) %>% filter(n > 1) %>% nrow() # check if any dupes; should be zero #
 
 ### bringing 2023 and 2022 datasets together with income_0421 ###
 ## combine 2022 and 2023 into their own MSOA21-coded set ##
@@ -236,10 +236,19 @@ income_2223_years <- bind_rows(
 
 nrow(income_2223_years) # when divided by 2 should be 7264 #
 
+income_0423 <- bind_rows(
+  income_0421,
+  income_2223_years
+)
+income_0423 %>% distinct(year) %>% arrange(year)
+income_0423 %>% count(msoa_id, year) %>% filter(n > 1) %>% nrow()  # expect 0
+
 ## bridging lsoa 21 bounds to msoa 11 bounds as no official lookup exists ##
 ## load in lookup tables ##
 lsoa_msoa_lookup <- read_csv("lsoa_msoa_lookup.csv")
 msoa_2011_msoa_2021 <- read_csv("msoa_2011_msoa_2021.csv")
+
+income_msoa21_years <- income_2223_years
 
 lsoa_msoa_bridge <- lsoa_msoa_lookup %>%
   select(lsoa_id = LSOA21CD, msoa_id = MSOA21CD) %>%
@@ -258,7 +267,7 @@ income_lsoa_hist_raw <- lsoa_msoa_bridge %>%
     relationship = "many-to-many"
   )
 
-## earlier work found duplicates between years with merges and new lsoas/msoas ##
+## earlier work found duplicates between years with merges and new lsoas/msoas ## check if any duplicates
 
 duplicate_lsoa_years <- income_lsoa_hist_raw %>%
   count(lsoa_id, year) %>%
@@ -302,4 +311,24 @@ income_lsoa_final <- bind_rows(
 income_lsoa_final %>% count(lsoa_id, year) %>% filter(n > 1) %>% nrow() # check for dupes, should be zero #
 income_lsoa_final %>% distinct(year) %>% arrange(year) # should show 2004-2023 #
 
-## can now be joined to ptf data ###
+#### can now be joined to ptf data ####
+ptf_cleaned_2307 <- ptf_cleaned_2307 %>%
+  select(-any_of("income")) %>%
+  left_join(income_lsoa_final, by = c("lsoa_id", "year"))
+
+## checking what percentage of rows are missing income, by year ##
+ptf_cleaned_2307 %>%
+  group_by(year) %>%
+  summarise(pct_na_income = mean(is.na(income))) %>%
+  arrange(year) %>%
+  print(n = Inf)
+
+## how many distinct LSOAs are missing income at least once across the whole panel ##
+ptf_cleaned_2307 %>%
+  filter(is.na(income)) %>%
+  distinct(lsoa_id) %>%
+  nrow()
+
+## overall summary of income once joined ##
+summary(ptf_cleaned_2307$income)
+
